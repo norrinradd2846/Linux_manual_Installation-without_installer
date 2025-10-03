@@ -1,0 +1,64 @@
+rsync -a -r -H -l -p -E -A -X -o -g 
+
+Prepare the Disk: Partitioning
+sudo fdisk -l
+A root partition (/).
+(Optional) A swap partition.
+(Optional for UEFI systems) An EFI System Partition (ESP).
+sudo mkfs.fat -F32 /dev/sda1  # EFI partition
+sudo mkfs.ext4 /dev/sda2      # Root partition
+sudo mkswap /dev/sda3         # Swap partition (if created)
+sudo swapon /dev/sda3         # Enable swap
+sudo mount /dev/sda2 /mnt
+For UEFI systems, mount the EFI partition:
+sudo mkdir /mnt/boot/efi
+sudo mount /dev/sda1 /mnt/boot/efi
+Copy the Live System to the Disk
+sudo rsync -a / /mnt --exclude={/dev/*,/proc/*,/sys/*,/tmp/*,/run/*,/mnt/*,/media/*,/lost+found}
+Set Up the Filesystem Table (fstab)
+sudo blkid  # Note
+Create and edit /mnt/etc/fstab:
+# <file system> <mount point> <type> <options> <dump> <pass>
+UUID=xxxx-xxxx-xxxx-xxxx / ext4 defaults 0 1
+UUID=yyyy-yyyy-yyyy-yyyy /boot/efi vfat defaults 0 1
+UUID=zzzz-zzzz-zzzz-zzzz none swap sw 0 0
+Chroot into the New System
+
+Bind-mount necessary directories:
+sudo mount --bind /dev /mnt/dev
+sudo mount --bind /proc /mnt/proc
+sudo mount --bind /sys /mnt/sys
+sudo mount --bind /run /mnt/run
+Enter the chroot environment:
+sudo chroot /mnt
+Install the Bootloader (GRUB)
+
+For UEFI systems:
+apt update
+apt install grub-efi
+grub-install --target=x86_64-efi --efi-directory=/boot/efi
+For BIOS systems:
+apt update
+apt install grub-pc
+grub-install /dev/sda
+
+Generate the GRUB configuration:
+update-grub
+Configure the System
+echo "ubuntu" > /etc/hostname
+Update /etc/hosts:
+nano /etc/hosts
+127.0.0.1 localhost
+127.0.1.1 ubuntu
+Set up networking (optional, for wired connections, NetworkManager is usually preconfigured):
+systemctl enable NetworkManager
+Set the root password:
+passwd
+Create a user (optional):
+adduser username
+usermod -aG sudo username
+Exit Chroot and Unmount
+Unmount all partitions:
+sudo umount /mnt/dev /mnt/proc /mnt/sys /mnt/run /mnt/boot/efi /mnt
+
+Reboot
